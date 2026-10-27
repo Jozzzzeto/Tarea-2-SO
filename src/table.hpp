@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #include "board.hpp"
 
 #include <array>
@@ -71,6 +73,13 @@ Piece pieceAt(
 capturedDogs() const;
 
 private:
+
+void logEvent(
+    const std::string& message
+) const;
+
+void printBoardLocked() const;
+
     struct DogThreadData {
         Table* table;
         int dogId;

@@ -2,9 +2,22 @@
 #include "rules.hpp"
 
 #include <chrono>
+#include <iostream>
 #include <random>
+#include <sstream>
 #include <stdexcept>
 #include <thread>
+
+namespace {
+
+pthread_mutex_t consoleMutex =
+    PTHREAD_MUTEX_INITIALIZER;
+
+}
+
+// --------------------------------------------------
+// CONSTRUCTORES
+// --------------------------------------------------
 
 Table::Table(
     int tableId,
@@ -56,10 +69,11 @@ Table::Table(
       finished_(false),
       result_(GameResult::Running) {
 
-    if (delayMinMs_ < 0 ||
+    if (
+        delayMinMs_ < 0 ||
         delayMaxMs_ < 0 ||
-        delayMinMs_ > delayMaxMs_) {
-
+        delayMinMs_ > delayMaxMs_
+    ) {
         throw std::invalid_argument(
             "Rango de retardos invalido"
         );
@@ -71,21 +85,23 @@ Table::Table(
         );
     }
 
-    if (pthread_mutex_init(
+    if (
+        pthread_mutex_init(
             &boardMutex_,
             nullptr
-        ) != 0) {
-
+        ) != 0
+    ) {
         throw std::runtime_error(
             "No se pudo inicializar el mutex"
         );
     }
 
-    if (pthread_cond_init(
+    if (
+        pthread_cond_init(
             &stateChanged_,
             nullptr
-        ) != 0) {
-
+        ) != 0
+    ) {
         pthread_mutex_destroy(
             &boardMutex_
         );
@@ -98,7 +114,12 @@ Table::Table(
     initializeBoard();
 }
 
+// --------------------------------------------------
+// DESTRUCTOR
+// --------------------------------------------------
+
 Table::~Table() {
+
     pthread_cond_destroy(
         &stateChanged_
     );
@@ -108,20 +129,26 @@ Table::~Table() {
     );
 }
 
+// --------------------------------------------------
+// INICIALIZACION DEL TABLERO
+// --------------------------------------------------
+
 void Table::initializeBoard() {
+
     board_.clear();
 
     pumaNode_ =
         initialPumaNode_;
 
-    if (!board_.place(
+    if (
+        !board_.place(
             pumaNode_,
             Piece{
                 PieceType::Puma,
                 0
             }
-        )) {
-
+        )
+    ) {
         throw std::runtime_error(
             "No se pudo colocar el Puma"
         );
@@ -152,14 +179,15 @@ void Table::initializeBoard() {
             )
         ] = node;
 
-        if (!board_.place(
+        if (
+            !board_.place(
                 node,
                 Piece{
                     PieceType::Dog,
                     dogId
                 }
-            )) {
-
+            )
+        ) {
             throw std::runtime_error(
                 "No se pudo colocar un Perro"
             );
@@ -167,7 +195,12 @@ void Table::initializeBoard() {
     }
 }
 
+// --------------------------------------------------
+// CONSULTAS DE ESTADO
+// --------------------------------------------------
+
 GameResult Table::result() const {
+
     pthread_mutex_lock(
         &boardMutex_
     );
@@ -183,6 +216,7 @@ GameResult Table::result() const {
 }
 
 int Table::capturedDogs() const {
+
     pthread_mutex_lock(
         &boardMutex_
     );
@@ -198,6 +232,7 @@ int Table::capturedDogs() const {
 }
 
 bool Table::isFinished() {
+
     pthread_mutex_lock(
         &boardMutex_
     );
@@ -212,10 +247,16 @@ bool Table::isFinished() {
     return value;
 }
 
+// --------------------------------------------------
+// TERMINO DE PARTIDA
+// --------------------------------------------------
+
 void Table::finishGame(
     GameResult result
 ) {
-    // Se llama con boardMutex_ bloqueado.
+
+    // Esta funcion se llama con boardMutex_ ya bloqueado.
+
     finished_ = true;
     result_ = result;
 
@@ -225,11 +266,13 @@ void Table::finishGame(
 }
 
 void Table::requestStop() {
+
     pthread_mutex_lock(
         &boardMutex_
     );
 
     if (!finished_) {
+
         finishGame(
             GameResult::Aborted
         );
@@ -243,16 +286,21 @@ void Table::requestStop() {
 void Table::disconnect(
     Side side
 ) {
+
     pthread_mutex_lock(
         &boardMutex_
     );
 
     if (!finished_) {
+
         if (side == Side::Puma) {
+
             finishGame(
                 GameResult::DogsWin
             );
+
         } else {
+
             finishGame(
                 GameResult::PumaWin
             );
@@ -272,7 +320,11 @@ bool Table::attemptDogMove(
     int dogId,
     Board::Node destination
 ) {
-    if (dogId < 0 || dogId >= 12) {
+
+    if (
+        dogId < 0 ||
+        dogId >= 12
+    ) {
         return false;
     }
 
@@ -281,6 +333,7 @@ bool Table::attemptDogMove(
     );
 
     if (finished_) {
+
         pthread_mutex_unlock(
             &boardMutex_
         );
@@ -296,6 +349,7 @@ bool Table::attemptDogMove(
         ];
 
     if (current < 0) {
+
         pthread_mutex_unlock(
             &boardMutex_
         );
@@ -311,7 +365,9 @@ bool Table::attemptDogMove(
         );
 
     if (move.success) {
-        current = destination;
+
+        current =
+            destination;
 
         pthread_cond_signal(
             &stateChanged_
@@ -328,11 +384,13 @@ bool Table::attemptDogMove(
 bool Table::attemptPumaMove(
     Board::Node destination
 ) {
+
     pthread_mutex_lock(
         &boardMutex_
     );
 
     if (finished_) {
+
         pthread_mutex_unlock(
             &boardMutex_
         );
@@ -348,9 +406,12 @@ bool Table::attemptPumaMove(
         );
 
     if (move.success) {
-        pumaNode_ = destination;
+
+        pumaNode_ =
+            destination;
 
         if (move.capture) {
+
             ++capturedDogs_;
 
             if (
@@ -380,6 +441,7 @@ bool Table::attemptPumaMove(
 Piece Table::pieceAt(
     Board::Node node
 ) const {
+
     pthread_mutex_lock(
         &boardMutex_
     );
@@ -395,14 +457,59 @@ Piece Table::pieceAt(
 }
 
 // --------------------------------------------------
+// LOGS
+// --------------------------------------------------
+
+void Table::logEvent(
+    const std::string& message
+) const {
+
+    pthread_mutex_lock(
+        &consoleMutex
+    );
+
+    std::cout
+        << "[Mesa "
+        << tableId_
+        << "] "
+        << message
+        << std::endl;
+
+    pthread_mutex_unlock(
+        &consoleMutex
+    );
+}
+
+void Table::printBoardLocked() const {
+
+    pthread_mutex_lock(
+        &consoleMutex
+    );
+
+    std::cout
+        << "[Mesa "
+        << tableId_
+        << "] Estado del tablero:\n"
+        << board_.toString()
+        << std::endl;
+
+    pthread_mutex_unlock(
+        &consoleMutex
+    );
+}
+
+// --------------------------------------------------
 // ENTRADAS DE THREADS
 // --------------------------------------------------
 
 void* Table::pumaThreadEntry(
     void* arg
 ) {
+
     Table* table =
-        static_cast<Table*>(arg);
+        static_cast<Table*>(
+            arg
+        );
 
     table->pumaLoop();
 
@@ -412,6 +519,7 @@ void* Table::pumaThreadEntry(
 void* Table::dogThreadEntry(
     void* arg
 ) {
+
     DogThreadData* data =
         static_cast<DogThreadData*>(
             arg
@@ -427,8 +535,11 @@ void* Table::dogThreadEntry(
 void* Table::judgeThreadEntry(
     void* arg
 ) {
+
     Table* table =
-        static_cast<Table*>(arg);
+        static_cast<Table*>(
+            arg
+        );
 
     table->judgeLoop();
 
@@ -440,6 +551,7 @@ void* Table::judgeThreadEntry(
 // --------------------------------------------------
 
 void Table::pumaLoop() {
+
     std::mt19937 generator(
         seed_ +
         1000U +
@@ -455,6 +567,7 @@ void Table::pumaLoop() {
         );
 
     while (!isFinished()) {
+
         std::this_thread::sleep_for(
             std::chrono::milliseconds(
                 delayDistribution(
@@ -468,6 +581,7 @@ void Table::pumaLoop() {
         );
 
         if (finished_) {
+
             pthread_mutex_unlock(
                 &boardMutex_
             );
@@ -482,6 +596,7 @@ void Table::pumaLoop() {
             );
 
         if (!moves.empty()) {
+
             std::uniform_int_distribution<
                 std::size_t
             > moveDistribution(
@@ -504,23 +619,55 @@ void Table::pumaLoop() {
                 );
 
             if (move.success) {
+
+                const Board::Node origin =
+                    pumaNode_;
+
                 pumaNode_ =
                     destination;
 
+                std::ostringstream event;
+
+                event
+                    << "PUMA "
+                    << board_.nodeName(
+                        origin
+                    )
+                    << " -> "
+                    << board_.nodeName(
+                        destination
+                    );
+
                 if (move.capture) {
+
                     ++capturedDogs_;
 
                     if (
                         move.capturedDogId >= 0 &&
                         move.capturedDogId < 12
                     ) {
+
                         dogNodes_[
                             static_cast<std::size_t>(
                                 move.capturedDogId
                             )
                         ] = -1;
                     }
+
+                    event
+                        << " | CAPTURA DOG "
+                        << move.capturedDogId
+                        << " en "
+                        << board_.nodeName(
+                            move.capturedNode
+                        );
                 }
+
+                logEvent(
+                    event.str()
+                );
+
+                printBoardLocked();
 
                 pthread_cond_signal(
                     &stateChanged_
@@ -541,6 +688,7 @@ void Table::pumaLoop() {
 void Table::dogLoop(
     int dogId
 ) {
+
     std::mt19937 generator(
         seed_ +
         2000U +
@@ -559,6 +707,7 @@ void Table::dogLoop(
         );
 
     while (!isFinished()) {
+
         std::this_thread::sleep_for(
             std::chrono::milliseconds(
                 delayDistribution(
@@ -572,6 +721,7 @@ void Table::dogLoop(
         );
 
         if (finished_) {
+
             pthread_mutex_unlock(
                 &boardMutex_
             );
@@ -586,7 +736,10 @@ void Table::dogLoop(
                 )
             ];
 
+        // Si el Perro fue capturado,
+        // su hilo termina.
         if (dogNode < 0) {
+
             pthread_mutex_unlock(
                 &boardMutex_
             );
@@ -601,6 +754,7 @@ void Table::dogLoop(
             );
 
         if (!moves.empty()) {
+
             std::uniform_int_distribution<
                 std::size_t
             > moveDistribution(
@@ -623,8 +777,32 @@ void Table::dogLoop(
                 );
 
             if (move.success) {
+
+                const Board::Node origin =
+                    dogNode;
+
                 dogNode =
                     destination;
+
+                std::ostringstream event;
+
+                event
+                    << "DOG "
+                    << dogId
+                    << " "
+                    << board_.nodeName(
+                        origin
+                    )
+                    << " -> "
+                    << board_.nodeName(
+                        destination
+                    );
+
+                logEvent(
+                    event.str()
+                );
+
+                printBoardLocked();
 
                 pthread_cond_signal(
                     &stateChanged_
@@ -643,14 +821,22 @@ void Table::dogLoop(
 // --------------------------------------------------
 
 void Table::judgeLoop() {
+
     pthread_mutex_lock(
         &boardMutex_
     );
 
     while (!finished_) {
-        if (Rules::pumaWins(
+
+        if (
+            Rules::pumaWins(
                 capturedDogs_
-            )) {
+            )
+        ) {
+
+            logEvent(
+                "JUEZ: victoria del Puma"
+            );
 
             finishGame(
                 GameResult::PumaWin
@@ -659,10 +845,16 @@ void Table::judgeLoop() {
             break;
         }
 
-        if (Rules::dogsWin(
+        if (
+            Rules::dogsWin(
                 board_,
                 pumaNode_
-            )) {
+            )
+        ) {
+
+            logEvent(
+                "JUEZ: victoria de los Perros"
+            );
 
             finishGame(
                 GameResult::DogsWin
@@ -687,11 +879,13 @@ void Table::judgeLoop() {
 // --------------------------------------------------
 
 GameResult Table::run() {
+
     for (
         int dogId = 0;
         dogId < 12;
         ++dogId
     ) {
+
         dogThreadData_[
             static_cast<std::size_t>(
                 dogId
@@ -705,26 +899,30 @@ GameResult Table::run() {
         ].dogId = dogId;
     }
 
-    // Juez
-    if (pthread_create(
+    // Crear Juez.
+    if (
+        pthread_create(
             &judgeThread_,
             nullptr,
             &Table::judgeThreadEntry,
             this
-        ) != 0) {
+        ) != 0
+    ) {
 
         requestStop();
 
         return result();
     }
 
-    // Puma
-    if (pthread_create(
+    // Crear Puma.
+    if (
+        pthread_create(
             &pumaThread_,
             nullptr,
             &Table::pumaThreadEntry,
             this
-        ) != 0) {
+        ) != 0
+    ) {
 
         requestStop();
 
@@ -738,13 +936,15 @@ GameResult Table::run() {
 
     int dogsCreated = 0;
 
-    // 12 Perros
+    // Crear 12 Perros.
     for (
         int dogId = 0;
         dogId < 12;
         ++dogId
     ) {
-        if (pthread_create(
+
+        if (
+            pthread_create(
                 &dogThreads_[
                     static_cast<std::size_t>(
                         dogId
@@ -757,7 +957,8 @@ GameResult Table::run() {
                         dogId
                     )
                 ]
-            ) != 0) {
+            ) != 0
+        ) {
 
             requestStop();
 
@@ -767,16 +968,19 @@ GameResult Table::run() {
         ++dogsCreated;
     }
 
+    // Esperar Puma.
     pthread_join(
         pumaThread_,
         nullptr
     );
 
+    // Esperar Perros.
     for (
         int dogId = 0;
         dogId < dogsCreated;
         ++dogId
     ) {
+
         pthread_join(
             dogThreads_[
                 static_cast<std::size_t>(
@@ -787,6 +991,7 @@ GameResult Table::run() {
         );
     }
 
+    // Despertar Juez por seguridad.
     pthread_mutex_lock(
         &boardMutex_
     );
@@ -799,6 +1004,7 @@ GameResult Table::run() {
         &boardMutex_
     );
 
+    // Esperar Juez.
     pthread_join(
         judgeThread_,
         nullptr

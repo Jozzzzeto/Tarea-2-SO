@@ -273,6 +273,10 @@ void Table::requestStop() {
 
     if (!finished_) {
 
+        logEvent(
+            "Partida detenida externamente"
+        );
+
         finishGame(
             GameResult::Aborted
         );
@@ -295,11 +299,19 @@ void Table::disconnect(
 
         if (side == Side::Puma) {
 
+            logEvent(
+                "Puma desconectado: victoria de los Perros"
+            );
+
             finishGame(
                 GameResult::DogsWin
             );
 
         } else {
+
+            logEvent(
+                "Jugador de Perros desconectado: victoria del Puma"
+            );
 
             finishGame(
                 GameResult::PumaWin

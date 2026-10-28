@@ -1,0 +1,4 @@
+# Config del torneo. Admite "clave=valor" o "CLAVE valor", varias por linea.
+CONFIG SEED 42 DELAY_MIN 50 DELAY_MAX 300 PUMA_INIT TRONO_TOP
+# Si se omite DOGS, los 12 perros los decide la seed.
+# Para forzar una disposicion: DOGS 0 0  1 0  2 0 ...  (12 nodos "x y")

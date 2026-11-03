@@ -76,7 +76,13 @@ int main(int argc, char** argv) {
     sigaddset(&set, SIGINT);
     sigaddset(&set, SIGTERM);
     sigaddset(&set, SIGUSR1);
-    pthread_sigmask(SIG_BLOCK, &set, nullptr);
+    const int rc = pthread_sigmask(SIG_BLOCK, &set, nullptr);
+        if (rc != 0) {
+            std::fprintf(stderr,
+                 "no se pudieron bloquear las senales (error %d)\n",
+                 rc);
+            return 1;
+        }
 
     Logger log;
     log.log("torneo: N=%ld jugadores, M=%ld mesas maximas", n, m);

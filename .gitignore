@@ -1,0 +1,5 @@
+/torneo
+/torneo_asan
+/torneo_tsan
+
+*.log

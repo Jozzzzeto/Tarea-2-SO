@@ -71,12 +71,21 @@ Matchmaker::Matchmaker(int nPlayers, int maxTables, const Config& cfg, Logger& l
     m_ = std::min(maxTables, std::max(1, n_ / 2));
 
     pthread_condattr_t at;
-    pthread_condattr_init(&at);
-    pthread_condattr_setclock(&at, CLOCK_MONOTONIC);   // para timedwait
-    bool mutexOk = pthread_mutex_init(&mu_, nullptr) == 0;
-    bool qOk = mutexOk && pthread_cond_init(&queueCv_, nullptr) == 0;
-    bool sOk = qOk && pthread_cond_init(&stopCv_, &at) == 0;
-    pthread_condattr_destroy(&at);
+
+      if (pthread_condattr_init(&at) != 0) {
+          return;
+        }
+
+      if (pthread_condattr_setclock(&at, CLOCK_MONOTONIC) != 0) {
+          pthread_condattr_destroy(&at);
+            return;
+        }
+
+bool mutexOk = pthread_mutex_init(&mu_, nullptr) == 0;
+bool qOk = mutexOk && pthread_cond_init(&queueCv_, nullptr) == 0;
+bool sOk = qOk && pthread_cond_init(&stopCv_, &at) == 0;
+
+pthread_condattr_destroy(&at);
     bool semOk = sOk && sem_init(&freeTables_, 0, static_cast<unsigned int>(m_)) == 0;
     if (!semOk) {
         if (sOk) pthread_cond_destroy(&stopCv_);

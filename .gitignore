@@ -3,3 +3,5 @@
 /torneo_tsan
 
 *.log
+
+*.o
